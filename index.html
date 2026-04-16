@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Primer Shmimer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>Primeroni Peperoni</h1>
+            <p class="subtitle">Evaluate primer quality by their thermodynamic properties and structural features</p>
+        </header>
+
+        <div class="glass-card">
+            <div class="input-section">
+                <!-- Sequences -->
+                <div class="sequence-layout">
+                    <div class="sequence-inputs">
+                        <div class="input-group">
+                            <label for="primer1">Primer 1 (Forward, 5' to 3')</label>
+                            <input type="text" id="primer1" placeholder="e.g. ATGCGTACGTAGCTAGC" autocomplete="off"
+                                spellcheck="false">
+                        </div>
+                        <div class="input-group">
+                            <label for="primer2">Primer 2 (Reverse, 5' to 3') (Optional)</label>
+                            <input type="text" id="primer2" placeholder="e.g. GCTAGCTACGTACGCAT" autocomplete="off"
+                                spellcheck="false">
+                        </div>
+                    </div>
+                    <button id="clearPrimersBtn" class="clear-primers-btn" type="button">Clear</button>
+                </div>
+
+                <!-- Tier 1 Params -->
+                <h3 class="section-heading">Essential Parameters</h3>
+                <div class="params-grid">
+                    <div class="input-group param-group">
+                        <label for="p_na">Na⁺ (mM)</label>
+                        <input type="number" id="p_na" value="50" step="1">
+                    </div>
+                    <div class="input-group param-group">
+                        <label for="p_mg">Mg²⁺ (mM)</label>
+                        <input type="number" id="p_mg" value="1.5" step="0.1">
+                    </div>
+                    <div class="input-group param-group">
+                        <label for="p_dntp">dNTP (mM total)</label>
+                        <input type="number" id="p_dntp" value="0.8" step="0.1">
+                    </div>
+                    <div class="input-group param-group">
+                        <label for="p_primer_conc">Primer Conc (nM)</label>
+                        <input type="number" id="p_primer_conc" value="250" step="10">
+                    </div>
+                    <div class="input-group param-group">
+                        <label for="p_ta">Annealing Temp (°C)</label>
+                        <input type="number" id="p_ta" value="60" step="0.5">
+                    </div>
+                </div>
+
+                <!-- Tier 2 & 3 Collapsibles -->
+                <details class="advanced-settings">
+                    <summary>Advanced Settings (Tier 2)</summary>
+                    <div class="params-grid advanced-grid">
+                        <div class="input-group param-group">
+                            <label for="p_k">K⁺ (mM)</label>
+                            <input type="number" id="p_k" value="0" step="1">
+                        </div>
+                        <div class="input-group param-group">
+                            <label for="p_tris">Tris (mM)</label>
+                            <input type="number" id="p_tris" value="0" step="1">
+                        </div>
+                        <div class="input-group param-group">
+                            <label for="p_tm_formula">Tm / Salt Cor. Formula</label>
+                            <select id="p_tm_formula">
+                                <option value="owczarzy">Owczarzy 2008 (Auto)</option>
+                                <option value="santalucia">SantaLucia 1998 + Na eq</option>
+                            </select>
+                        </div>
+                        <div class="input-group param-group">
+                            <label for="p_eval_t">Eval Temp (°C)</label>
+                            <input type="number" id="p_eval_t" value="37" step="1">
+                        </div>
+                        <div class="input-group param-group">
+                            <label for="p_max_hairpin">Max Hairpin Size</label>
+                            <input type="number" id="p_max_hairpin" value="30" step="1">
+                        </div>
+                    </div>
+                </details>
+
+                <details class="advanced-settings">
+                    <summary>Thresholds (Tier 3)</summary>
+                    <div class="params-grid threshold-grid">
+                        <div class="input-group param-group">
+                            <label for="t_hairpin_dg">Max Hairpin ΔG</label>
+                            <input type="number" id="t_hairpin_dg" value="-3.0" step="0.1">
+                        </div>
+                        <div class="input-group param-group">
+                            <label for="t_dimer_any">Max Dimer Global ΔG</label>
+                            <input type="number" id="t_dimer_any" value="-6.0" step="0.1">
+                        </div>
+                        <div class="input-group param-group">
+                            <label for="t_dimer_end">Max Dimer 3' Extensible ΔG</label>
+                            <input type="number" id="t_dimer_end" value="-6.0" step="0.1">
+                        </div>
+                        <div class="input-group param-group">
+                            <label for="t_tm_diff">Max ΔTm (°C)</label>
+                            <input type="number" id="t_tm_diff" value="5.0" step="0.5">
+                        </div>
+                        <div class="input-group param-group">
+                            <label for="t_end3_stab">Max 3' Stability ΔG</label>
+                            <input type="number" id="t_end3_stab" value="-9.0" step="0.1">
+                        </div>
+                    </div>
+                </details>
+
+            </div>
+            <button id="analyzeBtn" class="analyze-btn">Analyze Primers</button>
+        </div>
+
+        <div id="resultsContainer" class="hidden">
+            <div class="primer-results-grid">
+                <!-- Primer 1 Results -->
+                <div id="p1Results" class="glass-card result-panel hidden">
+                    <!-- dynamic injection -->
+                </div>
+
+                <!-- Primer 2 Results -->
+                <div id="p2Results" class="glass-card result-panel hidden">
+                    <!-- dynamic injection -->
+                </div>
+            </div>
+
+            <div class="primer-results-grid" id="secondaryStructuresGrid">
+                <!-- Cross-Dimer Results -->
+                <div id="crossResults" class="glass-card result-panel hidden">
+                    <!-- dynamic injection -->
+                </div>
+
+                <!-- Hairpin Results -->
+                <div id="hairpinResults" class="glass-card result-panel hidden">
+                    <!-- dynamic injection -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Templates for UI generation -->
+    <template id="primerReportTemplate">
+        <h2 class="primer-title">Primer</h2>
+        <div class="sequence-display"></div>
+        <div class="results-grid">
+            <div class="metric-card score-card">
+                <div class="metric-title">Score</div>
+                <div class="metric-value t-score">--</div>
+                <details class="metric-breakdown">
+                    <summary>Penalties</summary>
+                    <ul class="score-penalties"></ul>
+                </details>
+            </div>
+            <div class="metric-card">
+                <div class="metric-title">Tm</div>
+                <div class="metric-value t-tm">--</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-title">GC%</div>
+                <div class="metric-value t-gc">--</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-title">Length</div>
+                <div class="metric-value t-len">--</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-title">Target ΔG</div>
+                <div class="metric-value t-template-dg">--</div>
+            </div>
+        </div>
+        <h4 class="section-divider">Secondary Structures</h4>
+        <div class="structures-container text-output">
+            <!-- text blocks inserted here -->
+        </div>
+        <h4 class="section-divider">Sequence Checks</h4>
+        <div class="checks-container text-output text-checks">
+            <!-- text blocks inserted here -->
+        </div>
+    </template>
+
+    <script src="thermodynamics.js"></script>
+    <script src="primer3_wasm/dist/thal.js"></script>
+    <script src="thal_bridge.js"></script>
+    <script src="algorithms.js"></script>
+    <script src="app.js"></script>
+</body>
+
+</html>
