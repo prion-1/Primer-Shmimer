@@ -82,7 +82,7 @@ A penalty-based composite score from 0 to 100. Starts at 100; each metric that f
 |---|---|---|---|
 | Tm | 57–63°C | 52–57 or 63–68°C: −5 | <52 or >68°C: −15 |
 | GC% | 40–60% | 30–40 or 60–70%: −5 | <30 or >70%: −15 |
-| Hairpin ΔG | > −2 kcal/mol | −2 to −4: −10 | < −4: −20 |
+| Hairpin Tm | ≤ Ta − 15°C or no structure Tm | Ta − 15°C < Tm ≤ Ta − 5°C: −10 | > Ta − 5°C: −20 |
 | Self-dimer global ΔG | > −5 kcal/mol | −5 to −8: −10 | < −8: −20 |
 | Self-dimer 3' extensible ΔG | > −5 kcal/mol | −5 to −8: −15 | < −8: −25 |
 | 3' end stability (last 5 bp) | > −9 kcal/mol | −9 to −10: −5 | < −10: −10 |
@@ -90,7 +90,7 @@ A penalty-based composite score from 0 to 100. Starts at 100; each metric that f
 | Runs (≥4 identical bases) | None | Detected: −10 | — |
 | Length | 18–25 nt | 15–17 or 26–30: −5 | <15 or >30: −10 |
 
-The 3' extensible dimer carries the heaviest penalty (−25) because it directly produces artifacts. The score card is expandable — clicking "Penalties" shows exactly which metrics deducted points and by how much.
+Hairpin penalties use the structure Tm relative to the user-specified annealing temperature (Ta), matching the structure Tm traffic light: near-Ta hairpins are penalized because they can remain folded during annealing. The 3' extensible dimer carries the heaviest penalty (−25) because it directly produces artifacts. The score card is expandable — clicking "Penalties" shows exactly which metrics deducted points and by how much.
 
 Score interpretation: 80–100 (green) — good primer. 60–79 (yellow) — usable but has issues. Below 60 (red) — redesign recommended.
 
@@ -127,7 +127,7 @@ The ΔG of the full primer sequence evaluated at the annealing temperature. This
 | Mg²⁺ | 1.5 | mM | Divalent cation concentration |
 | dNTP | 0.8 | mM | Total dNTP (4 × 0.2 mM each) |
 | Primer concentration | 250 | nM | Total primer in reaction |
-| Annealing temperature | 60 | °C | Used for structure ΔG evaluation and Tm traffic lights |
+| Annealing temperature | 60 | °C | Used for structure ΔG evaluation, Tm traffic lights, and hairpin score penalties |
 | Evaluation temperature | 37 | °C | Temperature for Tm-independent ΔG calculations |
 | Max hairpin loop size | 30 | nt | Maximum loop length considered in hairpin search |
 | Salt correction | Owczarzy 2008 | — | Can be switched to SantaLucia 1998 + Na equivalent |

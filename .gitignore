@@ -2,6 +2,15 @@
 !.gitignore
 
 !index.html
+!style.css
+!app.js
+!algorithms.js
+!thermodynamics.js
+!thal_bridge.js
+!LICENSES.md
+!primer3_wasm/PRIMER3_LICENSE.txt
+!primer3_wasm/dist/thal.js
+
 !readme.md
 
 
