@@ -6,6 +6,9 @@ The structural prediction engine (hairpins, dimers) is Primer3's `thal.c` compil
 
 ## How to Use
 
+![Static Badge](https://img.shields.io/badge/Launch-green?style=for-the-badge&link=https%3A%2F%2Fprion-1.github.io%2FPrimer-Shmimer%2F)
+
+
 Open `index.html` in a browser. No server required — the app works from `file://`.
 
 Enter one or two primer sequences (5'→3', characters A/T/C/G only). Adjust salt concentrations and annealing temperature if your PCR conditions differ from the defaults.
