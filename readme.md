@@ -188,7 +188,7 @@ No external dependencies. No frameworks. No build step for the frontend. No data
 
 ## License
 
-This project uses Primer3's thermodynamic alignment engine (`thal.c`), compiled to WebAssembly. Primer3 is Copyright (c) 1996–2024 Whitehead Institute for Biomedical Research, Steve Rozen, Andreas Untergasser, and others. Released under the GNU General Public License, version 2 (GPL-2.0). Source: https://github.com/primer3-org/primer3
+This project uses **Primer3's** thermodynamic alignment engine (`thal.c`), compiled to WebAssembly. Primer3 is Copyright (c) 1996–2024 Whitehead Institute for Biomedical Research, Steve Rozen, Andreas Untergasser, and others. Released under the **GNU General Public License, version 2 (GPL-2.0)**. Source: https://github.com/primer3-org/primer3
 
 This project is released under the **GPL-3.0 License**.
 See `LICENSE` and `LICENSES.md` for details.
