@@ -127,18 +127,46 @@ Each structure's Tm is colored relative to the user-specified annealing temperat
 
 The ΔG of the full primer sequence evaluated at the annealing temperature. This represents the free energy of the primer-template duplex under actual reaction conditions. More negative values indicate stronger template binding.
 
-## Default Parameters
+## Input Parameters
 
-| Parameter | Default | Unit | Notes |
-|---|---|---|---|
-| Na⁺ | 50 | mM | Monovalent cation concentration |
-| Mg²⁺ | 1.5 | mM | Divalent cation concentration |
-| dNTP | 0.8 | mM | Total dNTP (4 × 0.2 mM each) |
-| Primer concentration | 250 | nM | Total primer in reaction |
-| Annealing temperature | 60 | °C | Used for structure ΔG evaluation, Tm traffic lights, and hairpin score penalties |
-| Evaluation temperature | 37 | °C | Temperature for Tm-independent ΔG calculations |
-| Max hairpin loop size | 30 | nt | Maximum loop length considered in hairpin search |
-| Salt correction | Owczarzy 2008 | — | Can be switched to SantaLucia 1998 + Na equivalent |
+### Primer Inputs
+
+| Parameter | Required | Description |
+|---|---|---|
+| Primer 1 | Yes | Forward primer sequence, entered 5' to 3'. Only A/T/C/G characters are accepted. |
+| Primer 2 | No | Reverse primer sequence, entered 5' to 3'. When provided, the tool also reports cross-dimers and pair ΔTm. |
+
+### Essential Parameters
+
+| Parameter | Default | Unit | Description |
+|---|---:|---|---|
+| Na⁺ | 50 | mM | Sodium concentration. Contributes to monovalent salt correction for primer Tm and structure calculations. |
+| Mg²⁺ | 1.5 | mM | Magnesium concentration. Strongly affects duplex stability and is adjusted for dNTP chelation. |
+| dNTP | 0.8 | mM | Total dNTP concentration. Treated as a Mg²⁺ chelator; free Mg²⁺ is approximated as Mg²⁺ − dNTP. |
+| Primer Conc | 250 | nM | Total primer concentration in the reaction. Higher concentration increases predicted primer-template Tm and structure stability. |
+| Annealing Temp | 60 | °C | PCR annealing temperature (Ta). Used for structure ΔG evaluation, structure Tm traffic lights, and hairpin score penalties. |
+
+### Advanced Settings (Tier 2)
+
+| Parameter | Default | Unit | Description |
+|---|---:|---|---|
+| K⁺ | 0 | mM | Potassium concentration. Added to the monovalent cation pool for salt correction. |
+| Tris | 0 | mM | Tris buffer concentration. Counts as half-strength monovalent cation contribution in the salt model. |
+| Tm / Salt Cor. Formula | Owczarzy 2008 | — | Selects the salt correction used for primer Tm: Owczarzy 2008 by default, or SantaLucia 1998 with Na-equivalent fallback. |
+| Eval Temp | 37 | °C | Temperature for Tm-independent ΔG calculations such as 3' and 5' end stability. Structure ΔG uses Annealing Temp instead. |
+| Max Hairpin Size | 30 | nt | Maximum hairpin loop size passed to the Primer3 `thal` engine during hairpin search. |
+
+### Thresholds (Tier 3)
+
+These thresholds control result-panel status colors and warning checks. They do not change the composite score penalty bands, which are described in the Quality Score section.
+
+| Parameter | Default | Unit | Description |
+|---|---:|---|---|
+| Max Hairpin ΔG | −3.0 | kcal/mol | Hairpin ΔG cutoff for the hairpin status color. More negative hairpins than this threshold are flagged red. |
+| Max Dimer Global ΔG | −6.0 | kcal/mol | Global dimer ΔG cutoff for self-dimer and cross-dimer status colors. More negative dimers are flagged red. |
+| Max Dimer 3' Extensible ΔG | −6.0 | kcal/mol | 3'-extensible dimer ΔG cutoff. More negative 3'-anchored dimers are flagged red because they can be extended by polymerase. |
+| Max ΔTm | 5.0 | °C | Maximum preferred Tm difference between Primer 1 and Primer 2. Larger differences are flagged in pair analysis. |
+| Max 3' Stability ΔG | −9.0 | kcal/mol | Cutoff for terminal 3' end stability. More negative values indicate an over-stable 3' end and higher mispriming risk. |
 
 ## Architecture
 
