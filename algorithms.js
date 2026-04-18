@@ -201,11 +201,20 @@
             }
         }
 
-        if (dimerAnyDG < -8.0) addPenalty(20, 'Self-dimer global ΔG', `${dimerAnyDG.toFixed(1)} kcal/mol`, 'strong');
-        else if (dimerAnyDG < -5.0) addPenalty(10, 'Self-dimer global ΔG', `${dimerAnyDG.toFixed(1)} kcal/mol`, 'moderate');
+        const sameStructure = dimerEndDG !== 0 && Math.abs(dimerAnyDG - dimerEndDG) < 0.01;
 
-        if (dimerEndDG < -8.0) addPenalty(25, "3' extensible dimer ΔG", `${dimerEndDG.toFixed(1)} kcal/mol`, 'strong');
-        else if (dimerEndDG < -5.0) addPenalty(15, "3' extensible dimer ΔG", `${dimerEndDG.toFixed(1)} kcal/mol`, 'moderate');
+        if (sameStructure) {
+            // Same dimer -- only penalize as 3' extensible (the more severe interpretation)
+            if (dimerEndDG < -8.0) addPenalty(25, "Self-dimer (3' extensible)", `${dimerEndDG.toFixed(1)} kcal/mol`, 'strong');
+            else if (dimerEndDG < -5.0) addPenalty(15, "Self-dimer (3' extensible)", `${dimerEndDG.toFixed(1)} kcal/mol`, 'moderate');
+        } else {
+            // Different structures -- penalize each independently
+            if (dimerAnyDG < -8.0) addPenalty(20, 'Self-dimer global ΔG', `${dimerAnyDG.toFixed(1)} kcal/mol`, 'strong');
+            else if (dimerAnyDG < -5.0) addPenalty(10, 'Self-dimer global ΔG', `${dimerAnyDG.toFixed(1)} kcal/mol`, 'moderate');
+
+            if (dimerEndDG < -8.0) addPenalty(25, "3' extensible dimer ΔG", `${dimerEndDG.toFixed(1)} kcal/mol`, 'strong');
+            else if (dimerEndDG < -5.0) addPenalty(15, "3' extensible dimer ΔG", `${dimerEndDG.toFixed(1)} kcal/mol`, 'moderate');
+        }
 
         if (end3DG < -10.0) addPenalty(10, "3' end stability", `${end3DG.toFixed(1)} kcal/mol`, 'over-stable');
         else if (end3DG < -9.0) addPenalty(5, "3' end stability", `${end3DG.toFixed(1)} kcal/mol`, 'marginal');
