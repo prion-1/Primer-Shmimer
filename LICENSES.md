@@ -9,4 +9,6 @@ Research, Steve Rozen, Andreas Untergasser, and others.
 Primer3 is released under the GNU General Public License, version 2
 (GPL-2.0).
 
+Redistribution and/or modification of Primer3 is granted by the license in the Primer3 repository below under the terms of the GNU General Public License as published by the Free Software Foundation; either version 2 of the License, or any later version.
+
 Source: https://github.com/primer3-org/primer3
