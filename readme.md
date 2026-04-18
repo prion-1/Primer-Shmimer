@@ -95,7 +95,7 @@ A penalty-based composite score from 0 to 100. Starts at 100; each metric that f
 | Self-dimer 3' extensible ΔG | > −5 kcal/mol | −5 to −8: −15 | < −8: −25 |
 | 3' end stability (last 5 bp) | > −9 kcal/mol | −9 to −10: −5 | < −10: −10 |
 | GC clamp (G/C in last 5) | 1–3 | 0 or 4: −5/−10 | 5: −10 |
-| Runs (≥4 identical bases) | None | Detected: −10 | — |
+| Runs (≥4 identical bases) | None | Detected: −10 | Detected: −10 |
 | Length | 18–25 nt | 15–17 or 26–30: −5 | <15 or >30: −10 |
 
 Hairpin penalties use the structure Tm relative to the user-specified annealing temperature (Ta), matching the structure Tm traffic light: near-Ta hairpins are penalized because they can remain folded during annealing. The 3' extensible dimer carries the heaviest penalty (−25) because it directly produces artifacts. The score card is expandable — clicking "Penalties" shows exactly which metrics deducted points and by how much.
@@ -171,15 +171,19 @@ These thresholds control result-panel status colors and warning checks. They do 
 ## Architecture
 
 ```
-index.html          UI layout, input forms, result templates
-style.css           Styling, traffic-light colors, monospace alignment
-thermodynamics.js   NN parameters for JS Tm calculation
-thal_bridge.js      JS ↔ WASM bridge for Primer3 thal engine
-algorithms.js       Tm calculation (JS), scoring, dimer/hairpin wrappers
-app.js              DOM rendering, structure visualization, event handling
-primer3_wasm/
-  dist/
-    thal.js         Emscripten-generated loader with inlined WASM
+/
+├── index.html                UI layout, input forms, result templates
+├── style.css                 Styling, traffic-light colors, monospace alignment
+├── app.js                    DOM rendering, structure visualization, event handling
+├── algorithms.js             Tm calculation (JS), scoring, dimer/hairpin wrappers
+├── thermodynamics.js         NN parameters for JS Tm calculation
+├── thal_bridge.js            JS ↔ WASM bridge for Primer3 thal engine
+├── LICENSE                   GPL-3.0 licence of this project
+├── LICENSES.md               Additional licensing information regarding Primer3
+└── primer3_wasm/
+    ├── PRIMER3_LICENSE.txt   Primer3 GPL-2.0 license
+    └── dist/
+        └── thal.js           Emscripten-generated loader with inlined WASM      
 ```
 
 The Tm calculation runs in pure JavaScript. Hairpin and dimer predictions are delegated to Primer3's `thal.c` compiled to WebAssembly via Emscripten. The WASM binary is inlined as base64 in `thal.js` (using Emscripten's `SINGLE_FILE=1` option), so the app works from `file://` without a server.
@@ -196,7 +200,7 @@ No external dependencies. No frameworks. No build step for the frontend. No data
 
 4. **Score is heuristic.** The 0–100 quality score is not from Primer3 or any peer-reviewed publication. It is a weighted penalty system based on community-standard thresholds. Different PCR applications (genotyping, cloning, qPCR, sequencing) may warrant different thresholds. The penalty weights reflect general-purpose PCR.
 
-5. **Sequence length.** Primer3's NN two-state model is considered reliable for sequences up to 60 nt. The tool does not enforce a hard length limit, but thermodynamic predictions for very long sequences should be treated with caution.
+5. **Sequence length.** Primer3's NN two-state model is considered reliable for sequences up to 60 nt. The tool does not enforce a hard length limit, but thermodynamic predictions for very long sequences should be treated with caution. Since the scoring paradigm is designed for standard PCR primer assessment, it progressively loses its signficance as the sequence length increases beyond 25-30 nt.
 
 6. **Input validation.** Only the characters A, T, C, G (auto-uppercased) are accepted. Ambiguous bases (N, R, Y, etc.), and modified bases are not supported.
 
