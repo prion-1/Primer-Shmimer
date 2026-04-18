@@ -179,6 +179,28 @@
             addPenalty(10, 'Hairpin Tm', `${hairpinTm.toFixed(1)} °C (Ta = ${ta.toFixed(0)} °C)`, 'partially stable near annealing');
         }
 
+        if (hairpin?.structureFound && hairpinTm > 0 && hairpinTm > ta - 15) {
+            const structure = hairpin.structure || '';
+            const lines = structure.replace(/\n+$/, '').split('\n');
+            const seqLine = lines.find(l => l.startsWith('STR'))?.substring(4) || '';
+            const foldLine = lines.find(l => l.startsWith('SEQ'))?.substring(4) || '';
+
+            // Check if 5' end overhangs (bases exist before the first / in the fold)
+            const firstSlash = foldLine.indexOf('/');
+            const hasFivePrimeOverhang = firstSlash > 0 && seqLine.substring(0, firstSlash).trim().length > 0;
+
+            // The 3' end is in the stem if the stem extends to the last base
+            const stemEnd = foldLine.lastIndexOf('\\');
+            const trailingBases = seqLine.substring(stemEnd + 1).replace(/\s/g, '').length;
+            const threePrimeInStem = trailingBases <= 1;
+
+            if (threePrimeInStem && hasFivePrimeOverhang) {
+                addPenalty(15, "Hairpin 3' self-priming",
+                    "3' end paired in stem with 5' overhang",
+                    'can self-extend');
+            }
+        }
+
         if (dimerAnyDG < -8.0) addPenalty(20, 'Self-dimer global ΔG', `${dimerAnyDG.toFixed(1)} kcal/mol`, 'strong');
         else if (dimerAnyDG < -5.0) addPenalty(10, 'Self-dimer global ΔG', `${dimerAnyDG.toFixed(1)} kcal/mol`, 'moderate');
 
