@@ -41,19 +41,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     analyzeBtn.addEventListener('click', () => {
         const p1 = primer1Input.value.replace(/\s+/g, '').toUpperCase();
         const p2 = primer2Input.value.replace(/\s+/g, '').toUpperCase();
-        const p1Name = getPrimerDisplayName(primer1NameInput, 'Primer 1');
-        const p2Name = getPrimerDisplayName(primer2NameInput, 'Primer 2');
+        const p1DefaultName = getDefaultPrimerName(primer1NameInput, 'Primer 1');
+        const p2DefaultName = getDefaultPrimerName(primer2NameInput, 'Primer 2');
+        const p1Name = getPrimerDisplayName(primer1NameInput, p1DefaultName);
+        const p2Name = getPrimerDisplayName(primer2NameInput, p2DefaultName);
+        const p1SequenceLabel = getInputCopy(primer1Input, `${p1DefaultName} Sequence`);
+        const p2SequenceLabel = getInputCopy(primer2Input, `${p2DefaultName} Sequence`);
 
         if (!p1) {
-            alert('Please enter at least Primer 1.');
+            alert(`Please enter ${p1SequenceLabel}.`);
             return;
         }
         if (!isValidDNA(p1)) {
-            alert('Primer 1 contains invalid characters.');
+            alert(`${p1SequenceLabel} contains invalid characters.`);
             return;
         }
         if (p2 && !isValidDNA(p2)) {
-            alert('Primer 2 contains invalid characters.');
+            alert(`${p2SequenceLabel} contains invalid characters.`);
             return;
         }
         const options = getOptions();
@@ -95,6 +99,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function getPrimerDisplayName(input, fallback) {
         return input.value.trim() || fallback;
+    }
+
+    function getInputCopy(input, fallback) {
+        return input.placeholder.trim() || fallback;
+    }
+
+    function getDefaultPrimerName(input, fallback) {
+        return getInputCopy(input, fallback)
+            .replace(/\s*\(Optional\)\s*$/i, '')
+            .replace(/\s+Name\s*$/i, '')
+            .trim() || fallback;
     }
 
     function syncClearButtonGeometry() {
