@@ -1,4 +1,6 @@
 document.addEventListener('DOMContentLoaded', async () => {
+    const primer1NameInput = document.getElementById('primer1Name');
+    const primer2NameInput = document.getElementById('primer2Name');
     const primer1Input = document.getElementById('primer1');
     const primer2Input = document.getElementById('primer2');
     const clearPrimersBtn = document.getElementById('clearPrimersBtn');
@@ -20,9 +22,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (clearPrimersBtn && sequenceLayout) {
         clearPrimersBtn.addEventListener('click', () => {
+            primer1NameInput.value = '';
+            primer2NameInput.value = '';
             primer1Input.value = '';
             primer2Input.value = '';
-            primer1Input.focus();
+            primer1NameInput.focus();
             syncClearButtonGeometry();
         });
 
@@ -37,7 +41,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     analyzeBtn.addEventListener('click', () => {
         const p1 = primer1Input.value.replace(/\s+/g, '').toUpperCase();
         const p2 = primer2Input.value.replace(/\s+/g, '').toUpperCase();
+        const p1Name = getPrimerDisplayName(primer1NameInput, 'Primer 1');
+        const p2Name = getPrimerDisplayName(primer2NameInput, 'Primer 2');
 
+        if (!p1) {
+            alert('Please enter at least Primer 1.');
+            return;
+        }
         if (!isValidDNA(p1)) {
             alert('Primer 1 contains invalid characters.');
             return;
@@ -46,11 +56,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             alert('Primer 2 contains invalid characters.');
             return;
         }
-        if (!p1) {
-            alert('Please enter at least Primer 1.');
-            return;
-        }
-
         const options = getOptions();
         const structureOptions = {
             ...options,
@@ -70,15 +75,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         hairpinContainer.innerHTML = '<h2 class="primer-title" style="color: var(--accent-rose);">Hairpins</h2>';
         hairpinContainer.classList.remove('hidden');
 
-        const p1Data = renderPrimer('p1Results', 'Primer 1', p1, options, structureOptions, thresholds);
-        appendHairpinToContainer(hairpinContainer, 'Primer 1 Hairpin', p1Data.hairpin, thresholds, options.ta);
+        const p1Data = renderPrimer('p1Results', p1Name, p1, options, structureOptions, thresholds);
+        appendHairpinToContainer(hairpinContainer, `${p1Name} Hairpin`, p1Data.hairpin, thresholds, options.ta);
 
         if (p2) {
             document.getElementById('p2Results').classList.remove('hidden');
             document.getElementById('crossResults').classList.remove('hidden');
 
-            const p2Data = renderPrimer('p2Results', 'Primer 2', p2, options, structureOptions, thresholds);
-            appendHairpinToContainer(hairpinContainer, 'Primer 2 Hairpin', p2Data.hairpin, thresholds, options.ta);
+            const p2Data = renderPrimer('p2Results', p2Name, p2, options, structureOptions, thresholds);
+            appendHairpinToContainer(hairpinContainer, `${p2Name} Hairpin`, p2Data.hairpin, thresholds, options.ta);
 
             const cross = window.BioAlgorithms.findBestDimer(p1, p2, structureOptions);
             renderCrossDimer('crossResults', cross, p1Data.thermo.tm, p2Data.thermo.tm, thresholds, options.ta);
@@ -88,11 +93,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
+    function getPrimerDisplayName(input, fallback) {
+        return input.value.trim() || fallback;
+    }
+
     function syncClearButtonGeometry() {
         if (!clearPrimersBtn || !sequenceLayout) return;
 
         const layoutRect = sequenceLayout.getBoundingClientRect();
-        const primer1Rect = primer1Input.getBoundingClientRect();
+        const primer1Rect = primer1NameInput.getBoundingClientRect();
         const primer2Rect = primer2Input.getBoundingClientRect();
 
         const topOffset = Math.max(0, primer1Rect.top - layoutRect.top);
@@ -319,7 +328,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     function createCheckLine(label, value, colorClass) {
         const div = document.createElement('div');
         div.className = 'check-item';
-        div.innerHTML = `<span>${label}</span> <strong class="${colorClass}">${value}</strong>`;
+        const labelEl = document.createElement('span');
+        labelEl.textContent = label;
+        const valueEl = document.createElement('strong');
+        valueEl.className = colorClass;
+        valueEl.textContent = value;
+        div.append(labelEl, valueEl);
         return div;
     }
 
@@ -327,7 +341,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         const div = document.createElement('div');
         div.className = 'check-item';
         const text = message || `ΔG @ ${tempC.toFixed(1)} °C = ${dG.toFixed(2)} kcal/mol`;
-        div.innerHTML = `<span>${label}</span> <strong class="${colorClass}">${text}</strong>`;
+        const labelEl = document.createElement('span');
+        labelEl.textContent = label;
+        const valueEl = document.createElement('strong');
+        valueEl.className = colorClass;
+        valueEl.textContent = text;
+        div.append(labelEl, valueEl);
         return div;
     }
 
@@ -389,7 +408,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const header = document.createElement('div');
         header.className = 'alignment-header';
-        header.innerHTML = `<span>${title}</span>${formatStructureMetrics(result, colorClass, tempC)}`;
+        const titleEl = document.createElement('span');
+        titleEl.textContent = title;
+        header.appendChild(titleEl);
+        header.insertAdjacentHTML('beforeend', formatStructureMetrics(result, colorClass, tempC));
         wrapper.appendChild(header);
         return wrapper;
     }

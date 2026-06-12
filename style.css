@@ -154,8 +154,13 @@ input[type="text"], input[type="number"], select {
     transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
-input[type="text"] {
+.sequence-input {
     font-family: var(--font-mono);
+}
+
+.primer-name-input {
+    font-family: var(--font-sans);
+    font-weight: 500;
 }
 
 input:focus, select:focus {
