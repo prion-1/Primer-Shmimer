@@ -75,7 +75,7 @@
         const dNTPConc = options.dNTPConc !== undefined ? options.dNTPConc : 0.0008;
         const kConc = options.kConc !== undefined ? options.kConc : 0;
         const trisConc = options.trisConc !== undefined ? options.trisConc : 0;
-        const primerConc = options.primerConc !== undefined ? options.primerConc : 250e-9;
+        const primerConc = options.primerConc !== undefined ? options.primerConc : 200e-9;
         const evalTempK = options.evalTempK !== undefined ? options.evalTempK : 310.15;
         const useOwczarzy = options.useOwczarzy !== undefined ? options.useOwczarzy : true;
 

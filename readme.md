@@ -143,7 +143,7 @@ The ΔG of the full primer sequence evaluated at the annealing temperature. This
 | Na⁺ | 50 | mM | Sodium concentration. Contributes to monovalent salt correction for primer Tm and structure calculations. |
 | Mg²⁺ | 1.5 | mM | Magnesium concentration. Strongly affects duplex stability and is adjusted for dNTP chelation. |
 | dNTP | 0.8 | mM | Total dNTP concentration. Treated as a Mg²⁺ chelator; free Mg²⁺ is approximated as Mg²⁺ − dNTP. |
-| Primer Conc | 250 | nM | Total primer concentration in the reaction. Higher concentration increases predicted primer-template Tm and structure stability. |
+| Primer Conc | 200 | nM | Total primer concentration in the reaction. Higher concentration increases predicted primer-template Tm and structure stability. |
 | Annealing Temp | 60 | °C | PCR annealing temperature (Ta). Used for structure ΔG evaluation, structure Tm traffic lights, and hairpin score penalties. |
 
 ### Advanced Settings (Tier 2)

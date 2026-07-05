@@ -49,7 +49,7 @@
             mv: ((options.naConc ?? 0.05) + (options.kConc ?? 0) + ((options.trisConc ?? 0) / 2)) * 1000,
             dv: (options.mgConc ?? 0.0015) * 1000,
             dntp: (options.dNTPConc ?? 0.0008) * 1000,
-            dna: (options.primerConc ?? 250e-9) * 1e9,
+            dna: (options.primerConc ?? 200e-9) * 1e9,
             tempC: (options.evalTempK ?? 310.15) - 273.15,
             maxLoop: options.maxLoopSize ?? 30
         };
