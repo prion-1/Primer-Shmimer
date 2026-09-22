@@ -57,6 +57,8 @@ Primer3 uses a dynamic programming algorithm that considers Watson-Crick matches
 
 Output: ΔG (kcal/mol) at the annealing temperature, structure Tm (°C), and an ASCII structure diagram showing the stem, loop, and pairing.
 
+The displayed Watson-Crick pair count is not, by itself, a proxy for hairpin Tm. Short GNA triloops can form exceptionally stable DNA mini-hairpins: for example, a `GC-GNA-GC` core has only two Watson-Crick stem pairs but gains sequence-specific loop and stacking stability. Primer3 includes this triloop bonus, and the UI labels these predictions as a **stabilized GNA triloop** rather than suppressing their experimentally plausible high Tm.
+
 Validated against primer3-py `calc_hairpin`: MAE < 10⁻¹⁵ kcal/mol (numerically identical to floating-point precision).
 
 ### Dimer Prediction
@@ -70,15 +72,15 @@ Two analyses are performed per primer pair:
 **3' Extensible:** Determines whether the 3' end of the primer is engaged in a dimer that DNA polymerase could extend, producing primer-dimer artifacts. This is biologically more consequential than the global score because even a weak 3'-anchored dimer can produce visible artifacts through exponential amplification.
 
 The 3' extensible analysis works as follows:
-1. Primer3's `thal_end1` result is obtained (forces the 3' terminal base of strand 1 to participate in pairing).
-2. The returned structure is parsed to verify that the 3' terminal base is part of a contiguous run of ≥2 paired bases (not an isolated pair bridged by a large internal loop).
+1. Primer3's `thal_end1` result is obtained in both primer orientations, forcing each primer's 3' terminal base to participate in turn.
+2. Each returned structure is parsed to verify that the 3' terminal base is a canonical Watson-Crick pair in a strictly contiguous run of ≥2 pairs. Mismatches, wobble pairs, and pairs separated by a bulge do not qualify as a polymerase-ready terminus.
 3. The opposing strand must extend ≥2 unpaired bases beyond the paired region (providing a template overhang for polymerase extension).
-4. If the `thal_end1` structure fails these checks (e.g., it contains a biologically impossible isolated terminal pair), the tool checks whether the global (ANY) structure happens to satisfy the criteria. If so, that structure is reported as 3' extensible.
-5. If neither structure qualifies, "No 3' extensible dimer found" is reported.
+4. If an end-constrained structure fails these checks, the tool checks whether the global (ANY) structure satisfies them for either primer. The most stable qualifying orientation is reported.
+5. If no structure qualifies, "No 3' extensible dimer found" is reported.
 
 This post-processing produces more biologically meaningful results than raw Primer3 `thal_end1` output, which can report structures where a single base pair is forced at the 3' terminus across a 20-nucleotide gap.
 
-For self-dimers, both copies of the sequence are evaluated against each other. For cross-dimers, primer 1 is evaluated against primer 2.
+For self-dimers, both copies of the sequence are evaluated against each other. For cross-dimers, both primer 1's and primer 2's 3' ends are evaluated.
 
 Validated against primer3-py `calc_homodimer` / `calc_heterodimer`: MAE < 10⁻¹⁵ kcal/mol.
 
@@ -91,6 +93,7 @@ A penalty-based composite score from 0 to 100. Starts at 100; each metric that f
 | Tm | 57–63°C | 52–57 or 63–68°C: −5 | <52 or >68°C: −15 |
 | GC% | 40–60% | 30–40 or 60–70%: −5 | <30 or >70%: −15 |
 | Hairpin Tm | ≤ Ta − 15°C or no structure Tm | Ta − 15°C < Tm ≤ Ta − 5°C: −10 | > Ta − 5°C: −20 |
+| Hairpin 3' self-priming | Not polymerase-ready, or Tm ≤ Ta − 15°C | — | Contiguous paired 3' end with template overhang: −15 |
 | Self-dimer global ΔG | > −5 kcal/mol | −5 to −8: −10 | < −8: −20 |
 | Self-dimer 3' extensible ΔG | > −5 kcal/mol | −5 to −8: −15 | < −8: −25 |
 | 3' end stability (last 5 bp) | > −9 kcal/mol | −9 to −10: −5 | < −10: −10 |
@@ -98,7 +101,7 @@ A penalty-based composite score from 0 to 100. Starts at 100; each metric that f
 | Runs (≥4 identical bases) | None | Detected: −10 | Detected: −10 |
 | Length | 18–25 nt | 15–17 or 26–30: −5 | <15 or >30: −10 |
 
-Hairpin penalties use the structure Tm relative to the user-specified annealing temperature (Ta), matching the structure Tm traffic light: near-Ta hairpins are penalized because they can remain folded during annealing. The 3' extensible dimer carries the heaviest penalty (−25) because it directly produces artifacts. The score card is expandable — clicking "Penalties" shows exactly which metrics deducted points and by how much.
+Hairpin penalties use the structure Tm relative to the user-specified annealing temperature (Ta), matching the structure Tm traffic light: near-Ta hairpins are penalized because they can remain folded during annealing. A separate 3' self-priming penalty is applied only when the terminal 3' nucleotide is canonically paired in a contiguous stem and the 5' side supplies a template overhang; a hairpin ending in an unpaired 3' tail does not qualify. The 3' extensible dimer carries the heaviest penalty (−25) because it directly produces artifacts. Global and 3'-extensible dimer penalties are deduplicated only when their pairing structures are the same. The score card is expandable — clicking "Penalties" shows exactly which metrics deducted points and by how much.
 
 Score interpretation: 80–100 (green) — good primer. 60–79 (yellow) — usable but has issues. Below 60 (red) — redesign recommended.
 
@@ -108,10 +111,12 @@ Dimer structures are displayed as alignments (5'→3' top strand, match symbols,
 
 Hairpin structures are displayed with the stem oriented horizontally and the loop shown at the fold point with `┐`/`┘` turn characters.
 
+Each hairpin and dimer header reports the number of canonical Watson-Crick base pairs (`WC bp`). Bulged nucleotides, wobble pairs, and mismatches are not included in that count.
+
 ### Structure Tm Traffic Light
 
 Each structure's Tm is colored relative to the user-specified annealing temperature (Ta):
-- Green: structure Tm < Ta − 15°C (fully melted at annealing temperature, irrelevant)
+- Green: structure Tm ≤ Ta − 15°C (fully melted at annealing temperature, irrelevant)
 - Yellow: structure Tm between Ta − 15°C and Ta − 5°C (may partially form during cooling)
 - Red: structure Tm > Ta − 5°C (stable at annealing temperature, will compete with template binding)
 
@@ -178,6 +183,7 @@ These thresholds control result-panel status colors and warning checks. They do 
 ├── algorithms.js             Tm calculation (JS), scoring, dimer/hairpin wrappers
 ├── thermodynamics.js         NN parameters for JS Tm calculation
 ├── thal_bridge.js            JS ↔ WASM bridge for Primer3 thal engine
+├── tests/                    Node regression tests for structures and scoring
 ├── LICENSE                   GPL-3.0 licence of this project
 ├── LICENSES.md               Additional licensing information regarding Primer3
 └── primer3_wasm/
@@ -215,6 +221,7 @@ No external dependencies. No frameworks. No build step for the frontend. No data
 - Peyret N et al. "Nearest-neighbor thermodynamics and NMR of DNA sequences with internal A·A, C·C, G·G, and T·T mismatches." Biochemistry 38:3468–3477 (1999).
 - Bommarito S et al. "Thermodynamic parameters for DNA sequences with dangling ends." Nucleic Acids Res 28:1929–1934 (2000).
 - SantaLucia J, Hicks D. "The thermodynamics of DNA structural motifs." Annu Rev Biophys Biomol Struct 33:415–440 (2004).
+- Hirao I et al. "Extraordinarily stable mini-hairpins: electrophoretical and thermal properties of the various sequence variants of d(GCGAAAGC) and their effect on DNA sequencing." Nucleic Acids Res 20:3891–3896 (1992).
 - Untergasser A et al. "Primer3 — new capabilities and interfaces." Nucleic Acids Res 40:e115 (2012).
 - Rentzeperis D et al. "Thermodynamics of DNA hairpins: contribution of loop size to hairpin stability and ethidium binding." Nucleic Acids Res 21:2683-2689 (1993).
 

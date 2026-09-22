@@ -18,5 +18,7 @@
 
 !readme.md
 
+!tests/
+!tests/structure-regressions.test.js
 
 

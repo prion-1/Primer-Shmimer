@@ -179,29 +179,15 @@
             addPenalty(10, 'Hairpin Tm', `${hairpinTm.toFixed(1)} °C (Ta = ${ta.toFixed(0)} °C)`, 'partially stable near annealing');
         }
 
-        if (hairpin?.structureFound && hairpinTm > 0 && hairpinTm > ta - 15) {
-            const structure = hairpin.structure || '';
-            const lines = structure.replace(/\n+$/, '').split('\n');
-            const seqLine = lines.find(l => l.startsWith('STR'))?.substring(4) || '';
-            const foldLine = lines.find(l => l.startsWith('SEQ'))?.substring(4) || '';
-
-            // Check if 5' end overhangs (bases exist before the first / in the fold)
-            const firstSlash = foldLine.indexOf('/');
-            const hasFivePrimeOverhang = firstSlash > 0 && seqLine.substring(0, firstSlash).trim().length > 0;
-
-            // The 3' end is in the stem if the stem extends to the last base
-            const stemEnd = foldLine.lastIndexOf('\\');
-            const trailingBases = seqLine.substring(stemEnd + 1).replace(/\s/g, '').length;
-            const threePrimeInStem = trailingBases <= 1;
-
-            if (threePrimeInStem && hasFivePrimeOverhang) {
-                addPenalty(15, "Hairpin 3' self-priming",
-                    "3' end paired in stem with 5' overhang",
-                    'can self-extend');
-            }
+        if (hairpin?.structureFound && hairpin?.isThreePrimeExtensible &&
+            hairpinTm > 0 && hairpinTm > ta - 15) {
+            addPenalty(15, "Hairpin 3' self-priming",
+                "paired 3' end with contiguous stem and 5' template overhang",
+                'can self-extend');
         }
 
-        const sameStructure = dimerEndDG !== 0 && Math.abs(dimerAnyDG - dimerEndDG) < 0.01;
+        const hasExtensibleDimer = !!selfDimer?.END?.isThreePrimeExtensible;
+        const sameStructure = hasExtensibleDimer && selfDimer?.END?.sameAsGlobal === true;
 
         if (sameStructure) {
             // Same dimer -- only penalize as 3' extensible (the more severe interpretation)
@@ -212,8 +198,8 @@
             if (dimerAnyDG < -8.0) addPenalty(20, 'Self-dimer global ΔG', `${dimerAnyDG.toFixed(1)} kcal/mol`, 'strong');
             else if (dimerAnyDG < -5.0) addPenalty(10, 'Self-dimer global ΔG', `${dimerAnyDG.toFixed(1)} kcal/mol`, 'moderate');
 
-            if (dimerEndDG < -8.0) addPenalty(25, "3' extensible dimer ΔG", `${dimerEndDG.toFixed(1)} kcal/mol`, 'strong');
-            else if (dimerEndDG < -5.0) addPenalty(15, "3' extensible dimer ΔG", `${dimerEndDG.toFixed(1)} kcal/mol`, 'moderate');
+            if (hasExtensibleDimer && dimerEndDG < -8.0) addPenalty(25, "3' extensible dimer ΔG", `${dimerEndDG.toFixed(1)} kcal/mol`, 'strong');
+            else if (hasExtensibleDimer && dimerEndDG < -5.0) addPenalty(15, "3' extensible dimer ΔG", `${dimerEndDG.toFixed(1)} kcal/mol`, 'moderate');
         }
 
         if (end3DG < -10.0) addPenalty(10, "3' end stability", `${end3DG.toFixed(1)} kcal/mol`, 'over-stable');
@@ -248,7 +234,14 @@
             dS: 0,
             Tm: 0,
             structure: null,
-            structureFound: false
+            structureFound: false,
+            basePairCount: 0,
+            loopLength: 0,
+            loopSequence: '',
+            specialTriloop: false,
+            threePrimeRunLength: 0,
+            fivePrimeTemplateOverhang: 0,
+            isThreePrimeExtensible: false
         };
     }
 
@@ -262,7 +255,17 @@
             alignEnd2: -1,
             structure: null,
             structureFound: false,
-            message: ''
+            message: '',
+            basePairCount: 0,
+            wobblePairCount: 0,
+            mismatchCount: 0,
+            topThreePrimeRunLength: 0,
+            bottomThreePrimeRunLength: 0,
+            topThreePrimeExtensible: false,
+            bottomThreePrimeExtensible: false,
+            isThreePrimeExtensible: false,
+            extensionPrimer: null,
+            sameAsGlobal: false
         };
     }
 
@@ -293,6 +296,21 @@
         return char === 'A' || char === 'T' || char === 'C' || char === 'G';
     }
 
+    function isWatsonCrickPair(topBase, bottomBase) {
+        return isBase(topBase) && isBase(bottomBase) && comp(topBase) === bottomBase;
+    }
+
+    function isWobblePair(topBase, bottomBase) {
+        const pair = `${topBase}${bottomBase}`;
+        return pair === 'GT' || pair === 'TG' || pair === 'GA' || pair === 'AG';
+    }
+
+    function getPairType(topBase, bottomBase) {
+        if (isWatsonCrickPair(topBase, bottomBase)) return 'wc';
+        if (isWobblePair(topBase, bottomBase)) return 'wobble';
+        return 'mismatch';
+    }
+
     function mapBaseIndices(chars) {
         const indices = new Array(chars.length).fill(-1);
         let baseIndex = 0;
@@ -306,12 +324,12 @@
     }
 
     function parseDimerPairs(structure) {
-        if (!structure) return null;
+        if (!structure) return [];
 
         const lines = extractPrimer3Lines(structure);
         const topRows = lines.filter(line => line.label === 'SEQ').map(line => line.text);
         const bottomRows = lines.filter(line => line.label === 'STR').map(line => line.text);
-        if (topRows.length === 0 || bottomRows.length === 0) return null;
+        if (topRows.length === 0 || bottomRows.length === 0) return [];
 
         const topRaw = overlayRows(topRows).replace(/-/g, ' ');
         const bottomRaw = overlayRows(bottomRows).replace(/-/g, ' ');
@@ -327,7 +345,10 @@
             pairs.push({
                 col: i,
                 topIndex: topIndices[i],
-                bottomIndex: bottomIndices[i]
+                bottomIndex: bottomIndices[i],
+                topBase: topChars[i],
+                bottomBase: bottomChars[i],
+                type: getPairType(topChars[i], bottomChars[i])
             });
         }
 
@@ -335,51 +356,187 @@
     }
 
     const MIN_THREE_PRIME_TEMPLATE_OVERHANG = 2;
+    const MIN_THREE_PRIME_RUN_PAIRS = 2;
 
     function pairsBelongToSameRun(leftPair, rightPair) {
-        return (rightPair.topIndex - leftPair.topIndex) <= 2 &&
-               (rightPair.bottomIndex - leftPair.bottomIndex) <= 2;
+        return rightPair.col - leftPair.col === 1 &&
+               rightPair.topIndex - leftPair.topIndex === 1 &&
+               rightPair.bottomIndex - leftPair.bottomIndex === 1 &&
+               leftPair.type === 'wc' && rightPair.type === 'wc';
     }
 
-    function getThreePrimeExtensionInfo(result, seq1Length, seq2Length) {
-        const pairs = parseDimerPairs(result?.structure);
-        if (!pairs || pairs.length === 0) return null;
+    function getTopThreePrimeExtensionInfo(pairs, seq1Length, seq2Length) {
+        const canonicalPairs = pairs.filter(pair => pair.type === 'wc');
+        if (canonicalPairs.length === 0) return null;
 
         const terminalIndex = seq1Length - 1;
-        const terminalPairIndex = pairs.findIndex(pair => pair.topIndex === terminalIndex);
+        const terminalPairIndex = canonicalPairs.findIndex(pair => pair.topIndex === terminalIndex);
         if (terminalPairIndex === -1) return null;
 
         let runStart = terminalPairIndex;
-        while (runStart > 0 && pairsBelongToSameRun(pairs[runStart - 1], pairs[runStart])) {
+        while (runStart > 0 && pairsBelongToSameRun(canonicalPairs[runStart - 1], canonicalPairs[runStart])) {
             runStart--;
         }
 
-        let runEnd = terminalPairIndex;
-        while (runEnd < pairs.length - 1 && pairsBelongToSameRun(pairs[runEnd], pairs[runEnd + 1])) {
-            runEnd++;
-        }
-
-        const runPairs = pairs.slice(runStart, runEnd + 1);
-        if (runPairs.length < 2) return null;
-
-        const terminalPair = pairs[terminalPairIndex];
-        const runMaxBottomIndex = Math.max(...runPairs.map(pair => pair.bottomIndex));
+        const terminalPair = canonicalPairs[terminalPairIndex];
         return {
-            lastPairedP1: terminalPair.topIndex,
-            pairedPartnerOnP2: seq2Length - terminalPair.bottomIndex,
-            overhang: (seq2Length - 1) - runMaxBottomIndex
+            runLength: terminalPairIndex - runStart + 1,
+            templateOverhang: (seq2Length - 1) - terminalPair.bottomIndex
         };
     }
 
-    function hasContiguousThreePrimeExtension(result, seq1Length, seq2Length) {
-        const extensionInfo = getThreePrimeExtensionInfo(result, seq1Length, seq2Length);
-        if (!extensionInfo) return false;
-        return extensionInfo.lastPairedP1 === seq1Length - 1 &&
-               extensionInfo.overhang >= MIN_THREE_PRIME_TEMPLATE_OVERHANG;
+    function getBottomThreePrimeExtensionInfo(pairs) {
+        const canonicalPairs = pairs.filter(pair => pair.type === 'wc');
+        if (canonicalPairs.length === 0) return null;
+
+        const terminalPairIndex = canonicalPairs.findIndex(pair => pair.bottomIndex === 0);
+        if (terminalPairIndex === -1) return null;
+
+        let runEnd = terminalPairIndex;
+        while (runEnd < canonicalPairs.length - 1 &&
+               pairsBelongToSameRun(canonicalPairs[runEnd], canonicalPairs[runEnd + 1])) {
+            runEnd++;
+        }
+
+        const terminalPair = canonicalPairs[terminalPairIndex];
+        return {
+            runLength: runEnd - terminalPairIndex + 1,
+            templateOverhang: terminalPair.topIndex
+        };
+    }
+
+    function analyzeDimerStructure(structure, seq1Length, seq2Length) {
+        const pairs = parseDimerPairs(structure);
+        const topExtension = getTopThreePrimeExtensionInfo(pairs, seq1Length, seq2Length);
+        const bottomExtension = getBottomThreePrimeExtensionInfo(pairs);
+        const topThreePrimeExtensible = !!topExtension &&
+            topExtension.runLength >= MIN_THREE_PRIME_RUN_PAIRS &&
+            topExtension.templateOverhang >= MIN_THREE_PRIME_TEMPLATE_OVERHANG;
+        const bottomThreePrimeExtensible = !!bottomExtension &&
+            bottomExtension.runLength >= MIN_THREE_PRIME_RUN_PAIRS &&
+            bottomExtension.templateOverhang >= MIN_THREE_PRIME_TEMPLATE_OVERHANG;
+
+        return {
+            basePairCount: pairs.filter(pair => pair.type === 'wc').length,
+            wobblePairCount: pairs.filter(pair => pair.type === 'wobble').length,
+            mismatchCount: pairs.filter(pair => pair.type === 'mismatch').length,
+            topThreePrimeRunLength: topExtension?.runLength ?? 0,
+            bottomThreePrimeRunLength: bottomExtension?.runLength ?? 0,
+            topTemplateOverhang: topExtension?.templateOverhang ?? 0,
+            bottomTemplateOverhang: bottomExtension?.templateOverhang ?? 0,
+            topThreePrimeExtensible,
+            bottomThreePrimeExtensible,
+            isThreePrimeExtensible: topThreePrimeExtensible || bottomThreePrimeExtensible
+        };
+    }
+
+    function analyzeHairpinStructure(structure) {
+        const empty = {
+            basePairCount: 0,
+            loopLength: 0,
+            loopSequence: '',
+            specialTriloop: false,
+            threePrimeRunLength: 0,
+            fivePrimeTemplateOverhang: 0,
+            isThreePrimeExtensible: false
+        };
+        if (!structure) return empty;
+
+        const lines = extractPrimer3Lines(structure);
+        const foldLine = lines.find(line => line.label === 'SEQ')?.text || '';
+        const seqLine = lines.find(line => line.label === 'STR')?.text || '';
+        if (!foldLine || !seqLine) return empty;
+
+        const leftPairs = [];
+        const rightPairs = [];
+        for (let i = 0; i < foldLine.length; i++) {
+            if (foldLine[i] === '/') leftPairs.push(i);
+            if (foldLine[i] === '\\') rightPairs.push(i);
+        }
+
+        const basePairCount = Math.min(leftPairs.length, rightPairs.length);
+        if (basePairCount === 0) return empty;
+
+        const innerLeft = leftPairs[leftPairs.length - 1];
+        const innerRight = rightPairs[0];
+        const loopSequence = seqLine
+            .slice(innerLeft + 1, innerRight)
+            .split('')
+            .filter(isBase)
+            .join('');
+        const specialTriloop = loopSequence.length === 3 &&
+            loopSequence[0] === 'G' && loopSequence[2] === 'A' &&
+            isWatsonCrickPair(seqLine[innerLeft], seqLine[innerRight]);
+
+        let lastBaseColumn = -1;
+        for (let i = seqLine.length - 1; i >= 0; i--) {
+            if (isBase(seqLine[i])) {
+                lastBaseColumn = i;
+                break;
+            }
+        }
+
+        const outerLeft = leftPairs[0];
+        const outerRight = rightPairs[rightPairs.length - 1];
+        const threePrimeEndPaired = lastBaseColumn === outerRight;
+        let threePrimeRunLength = 0;
+
+        if (threePrimeEndPaired) {
+            for (let offset = 0; offset < basePairCount; offset++) {
+                const left = leftPairs[offset];
+                const right = rightPairs[rightPairs.length - 1 - offset];
+                if (offset > 0) {
+                    const previousLeft = leftPairs[offset - 1];
+                    const previousRight = rightPairs[rightPairs.length - offset];
+                    if (left - previousLeft !== 1 || previousRight - right !== 1) break;
+                }
+                if (!isWatsonCrickPair(seqLine[left], seqLine[right])) break;
+                threePrimeRunLength++;
+            }
+        }
+
+        const fivePrimeTemplateOverhang = seqLine
+            .slice(0, outerLeft)
+            .split('')
+            .filter(isBase)
+            .length;
+        const isThreePrimeExtensible = threePrimeRunLength >= MIN_THREE_PRIME_RUN_PAIRS &&
+            fivePrimeTemplateOverhang >= MIN_THREE_PRIME_TEMPLATE_OVERHANG;
+
+        return {
+            basePairCount,
+            loopLength: loopSequence.length,
+            loopSequence,
+            specialTriloop,
+            threePrimeRunLength,
+            fivePrimeTemplateOverhang,
+            isThreePrimeExtensible
+        };
     }
 
     function normalizeDimerResult(result) {
-        return result.structureFound || result.dG < 0 ? result : emptyDimer();
+        return result?.structureFound && result.structure ? result : emptyDimer();
+    }
+
+    function annotateDimerResult(result, seq1Length, seq2Length) {
+        const normalized = normalizeDimerResult(result);
+        if (!normalized.structureFound) return normalized;
+        return {
+            ...normalized,
+            ...analyzeDimerStructure(normalized.structure, seq1Length, seq2Length)
+        };
+    }
+
+    function normalizedStructure(structure) {
+        return (structure || '')
+            .replace(/[ \t]+$/gm, '')
+            .replace(/\n+$/, '');
+    }
+
+    function chooseMostStable(candidates) {
+        return candidates.reduce((best, candidate) => (
+            !best || candidate.dG < best.dG ? candidate : best
+        ), null);
     }
 
     function primer3Ready() {
@@ -392,7 +549,10 @@
 
         const result = window.Primer3.calcHairpin(seq, options);
         if (!result.structureFound) return emptyHairpin();
-        return result;
+        return {
+            ...result,
+            ...analyzeHairpinStructure(result.structure)
+        };
     }
 
     function findBestDimer(p1, p2, options = {}) {
@@ -403,18 +563,59 @@
             return { ANY: emptyDimer(), END: emptyDimer() };
         }
 
-        const any = normalizeDimerResult(window.Primer3.calcDimer(p1, p2, options, 'ANY'));
-        let end = normalizeDimerResult(window.Primer3.calcDimer(p1, p2, options, 'END'));
+        const any = annotateDimerResult(
+            window.Primer3.calcDimer(p1, p2, options, 'ANY'),
+            p1.length,
+            p2.length
+        );
+        const endCandidates = [];
+        const end1 = annotateDimerResult(
+            window.Primer3.calcDimer(p1, p2, options, 'END'),
+            p1.length,
+            p2.length
+        );
 
-        if (end.structureFound && !hasContiguousThreePrimeExtension(end, p1.length, p2.length)) {
-            if (any.structureFound && hasContiguousThreePrimeExtension(any, p1.length, p2.length)) {
-                end = { ...any };
-            } else {
-                end = {
-                    ...emptyDimer(),
-                    message: "No 3' extensible dimer found"
-                };
+        if (end1.structureFound &&
+            (end1.topThreePrimeExtensible || (p1 === p2 && end1.bottomThreePrimeExtensible))) {
+            endCandidates.push({ ...end1, extensionPrimer: 1 });
+        }
+
+        if (p1 !== p2) {
+            const end2 = annotateDimerResult(
+                window.Primer3.calcDimer(p2, p1, options, 'END'),
+                p2.length,
+                p1.length
+            );
+            if (end2.structureFound && end2.topThreePrimeExtensible) {
+                endCandidates.push({ ...end2, extensionPrimer: 2 });
             }
+        }
+
+        if (any.structureFound && any.topThreePrimeExtensible) {
+            endCandidates.push({ ...any, extensionPrimer: 1, sameAsGlobal: true });
+        }
+        if (any.structureFound && any.bottomThreePrimeExtensible) {
+            endCandidates.push({
+                ...any,
+                extensionPrimer: p1 === p2 ? 1 : 2,
+                sameAsGlobal: true
+            });
+        }
+
+        let end = chooseMostStable(endCandidates);
+        if (!end) {
+            end = {
+                ...emptyDimer(),
+                message: "No 3' extensible dimer found"
+            };
+        } else {
+            const sameAsGlobal = end.sameAsGlobal ||
+                normalizedStructure(end.structure) === normalizedStructure(any.structure);
+            end = {
+                ...end,
+                isThreePrimeExtensible: true,
+                sameAsGlobal
+            };
         }
 
         return {
@@ -429,6 +630,8 @@
         calculatePrimerScore,
         findBestDimer,
         findBestHairpin,
+        analyzeDimerStructure,
+        analyzeHairpinStructure,
         getDG,
         getPrimerScoreDetails,
         comp,

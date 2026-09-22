@@ -442,6 +442,16 @@ details[open].advanced-settings .params-grid {
     flex-wrap: wrap;
 }
 
+.bp-value {
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.motif-value {
+    color: var(--accent-indigo);
+    font-weight: 600;
+}
+
 .alignment-code {
     font-family: var(--font-mono);
     font-size: 0.95rem;

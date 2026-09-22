@@ -90,7 +90,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             appendHairpinToContainer(hairpinContainer, `${p2Name} Hairpin`, p2Data.hairpin, thresholds, options.ta);
 
             const cross = window.BioAlgorithms.findBestDimer(p1, p2, structureOptions);
-            renderCrossDimer('crossResults', cross, p1Data.thermo.tm, p2Data.thermo.tm, thresholds, options.ta);
+            renderCrossDimer(
+                'crossResults',
+                cross,
+                p1Data.thermo.tm,
+                p2Data.thermo.tm,
+                thresholds,
+                options.ta,
+                p1Name,
+                p2Name
+            );
         } else {
             document.getElementById('p2Results').classList.add('hidden');
             document.getElementById('crossResults').classList.add('hidden');
@@ -253,7 +262,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    function renderCrossDimer(containerId, dimer, p1Tm, p2Tm, thresholds, structureTempC) {
+    function renderCrossDimer(
+        containerId,
+        dimer,
+        p1Tm,
+        p2Tm,
+        thresholds,
+        structureTempC,
+        p1Name,
+        p2Name
+    ) {
         const container = document.getElementById(containerId);
         container.innerHTML = '<h2 class="primer-title" style="color: var(--accent-rose);">Cross-Primer Dimer</h2>';
         const structContainer = document.createElement('div');
@@ -271,10 +289,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         const crossEndAlert = structureAlert(dimer.END.dG, thresholds.maxDimerEndDG);
+        const extensiblePrimerName = dimer.END.extensionPrimer === 2 ? p2Name : p1Name;
+        const crossEndTitle = dimer.END.structureFound
+            ? `Cross-Dimer (${extensiblePrimerName} 3' Extensible)`
+            : "Cross-Dimer (3' Extensible)";
         if (dimer.END.structureFound) {
-            structContainer.appendChild(createAlignmentBlock("Cross-Dimer (3' Extensible)", dimer.END, crossEndAlert, structureTempC, true));
+            structContainer.appendChild(createAlignmentBlock(crossEndTitle, dimer.END, crossEndAlert, structureTempC, true));
         } else {
-            structContainer.appendChild(createStructureLine("Cross-Dimer (3' Extensible)", dimer.END.dG, structureTempC, crossEndAlert, dimer.END.message));
+            structContainer.appendChild(createStructureLine(crossEndTitle, dimer.END.dG, structureTempC, crossEndAlert, dimer.END.message));
         }
 
         container.appendChild(structContainer);
@@ -359,10 +381,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function createAlignmentBlock(title, result, colorClass, tempC, allowFragmented = false) {
-        const wrapper = createStructureWrapper(title, result, colorClass, tempC);
+        const parsed = result.structure ? parsePrimer3DimerStructure(result.structure, allowFragmented) : null;
+        const basePairCount = Number.isInteger(result.basePairCount)
+            ? result.basePairCount
+            : parsed?.basePairCount;
+        const wrapper = createStructureWrapper(title, result, colorClass, tempC, basePairCount);
         if (!result.structure) return wrapper;
 
-        const parsed = parsePrimer3DimerStructure(result.structure, allowFragmented);
         if (!parsed) {
             appendStyledPlaceholder(
                 wrapper,
@@ -385,10 +410,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function createHairpinBlock(title, result, colorClass, tempC) {
-        const wrapper = createStructureWrapper(title, result, colorClass, tempC);
+        const parsed = result.structure ? parsePrimer3HairpinStructure(result.structure) : null;
+        const basePairCount = Number.isInteger(result.basePairCount)
+            ? result.basePairCount
+            : parsed?.basePairCount;
+        const wrapper = createStructureWrapper(title, result, colorClass, tempC, basePairCount);
         if (!result.structure) return wrapper;
 
-        const parsed = parsePrimer3HairpinStructure(result.structure);
         if (!parsed) {
             appendStyledPlaceholder(
                 wrapper,
@@ -402,15 +430,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         appendStyledAlignment(
             wrapper,
             [
-                highlightRange(parsed.topRow, parsed.topStemStart, parsed.stemLength, 'match-wc'),
+                highlightPositions(parsed.topRow, parsed.topPairedPositions, 'match-wc'),
                 colorizeMatchRow(parsed.midRow),
-                highlightRange(parsed.bottomRow, parsed.bottomStemStart, parsed.stemLength, 'match-wc')
+                highlightPositions(parsed.bottomRow, parsed.bottomPairedPositions, 'match-wc')
             ]
         );
         return wrapper;
     }
 
-    function createStructureWrapper(title, result, colorClass, tempC) {
+    function createStructureWrapper(title, result, colorClass, tempC, basePairCount) {
         const wrapper = document.createElement('div');
         wrapper.className = 'alignment-block';
 
@@ -419,24 +447,35 @@ document.addEventListener('DOMContentLoaded', async () => {
         const titleEl = document.createElement('span');
         titleEl.textContent = title;
         header.appendChild(titleEl);
-        header.insertAdjacentHTML('beforeend', formatStructureMetrics(result, colorClass, tempC));
+        header.insertAdjacentHTML('beforeend', formatStructureMetrics(
+            result,
+            colorClass,
+            tempC,
+            basePairCount
+        ));
         wrapper.appendChild(header);
         return wrapper;
     }
 
-    function formatStructureMetrics(result, colorClass, annealingTempC) {
+    function formatStructureMetrics(result, colorClass, annealingTempC, basePairCount) {
+        const pairText = Number.isInteger(basePairCount)
+            ? `<span class="bp-value status-default">${basePairCount} WC bp</span>`
+            : '';
+        const motifText = result.specialTriloop
+            ? '<span class="motif-value" title="Primer3 includes sequence-specific GNA triloop stabilization.">stabilized GNA triloop</span>'
+            : '';
         const dgText = `<span class="dg-value ${colorClass}">ΔG: ${result.dG.toFixed(2)} kcal/mol</span>`;
-        if (!Number.isFinite(result.Tm) || result.Tm <= 0) {
-            return `<span class="structure-metrics">${dgText}</span>`;
+        if (!Number.isFinite(result.Tm)) {
+            return `<span class="structure-metrics">${pairText}${motifText}${dgText}</span>`;
         }
 
         const tmClass = structureTmAlert(result.Tm, annealingTempC);
         const tmText = `<span class="tm-value ${tmClass}">Tm: ${result.Tm.toFixed(1)} °C</span>`;
-        return `<span class="structure-metrics">${dgText}${tmText}</span>`;
+        return `<span class="structure-metrics">${pairText}${motifText}${dgText}${tmText}</span>`;
     }
 
     function structureTmAlert(structureTm, annealingTempC) {
-        if (structureTm < annealingTempC - 15) return 'status-green';
+        if (structureTm <= annealingTempC - 15) return 'status-green';
         if (structureTm <= annealingTempC - 5) return 'status-yellow';
         return 'status-red';
     }
@@ -592,7 +631,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         return {
             topRow: `5' ${trimRight(topDisplay.join(''))} 3'`,
             matchRow: `   ${trimRight(matchChars.join(''))}   `,
-            bottomRow: `3' ${trimRight(bottomDisplay.join(''))} 5'`
+            bottomRow: `3' ${trimRight(bottomDisplay.join(''))} 5'`,
+            basePairCount: matchChars.filter(char => char === '|').length
         };
     }
 
@@ -626,19 +666,35 @@ document.addEventListener('DOMContentLoaded', async () => {
         const tail3 = seqLine.slice(rightEnd + 1);
         const bottomStem = stem3.split('').reverse().join('');
         const bottomTail = tail3.split('').reverse().join('');
-        const stemLength = Math.min(stem5.length, bottomStem.length);
         const padTop = Math.max(0, bottomTail.length - tail5.length);
         const padBot = Math.max(0, tail5.length - bottomTail.length);
         const loopTop = loopSeq.slice(0, Math.floor(loopSeq.length / 2));
         const loopMid = loopSeq.length % 2 === 1 ? loopSeq[Math.floor(loopSeq.length / 2)] : '│';
         const loopBot = loopSeq.slice(Math.ceil(loopSeq.length / 2)).split('').reverse().join('');
+        const leftPairOffsets = [];
+        const rightPairOffsets = [];
+        for (let i = leftStart; i <= leftEnd; i++) {
+            if (foldLine[i] === '/') leftPairOffsets.push(i - leftStart);
+        }
+        for (let i = rightStart; i <= rightEnd; i++) {
+            if (foldLine[i] === '\\') rightPairOffsets.push(rightEnd - i);
+        }
+        const topStemStart = 3 + padTop + tail5.length;
+        const bottomStemStart = 3 + padBot + bottomTail.length;
+        const topPairedPositions = leftPairOffsets.map(offset => topStemStart + offset);
+        const bottomPairedPositions = rightPairOffsets.map(offset => bottomStemStart + offset);
+        const stemPairMarkers = foldLine
+            .slice(leftStart, leftEnd + 1)
+            .split('')
+            .map(char => char === '/' ? '|' : ' ')
+            .join('');
         return {
             topRow: `5' ${' '.repeat(padTop)}${tail5}${stem5}-${loopTop}┐`,
-            midRow: `   ${' '.repeat(padTop + tail5.length)}${'|'.repeat(stemLength)} ${' '.repeat(loopTop.length)}${loopMid}`,
+            midRow: `   ${' '.repeat(padTop + tail5.length)}${stemPairMarkers} ${' '.repeat(loopTop.length)}${loopMid}`,
             bottomRow: `3' ${' '.repeat(padBot)}${bottomTail}${bottomStem}-${loopBot}┘`,
-            topStemStart: 3 + padTop + tail5.length,
-            bottomStemStart: 3 + padBot + bottomTail.length,
-            stemLength
+            topPairedPositions,
+            bottomPairedPositions,
+            basePairCount: Math.min(leftPairOffsets.length, rightPairOffsets.length)
         };
     }
 
@@ -687,11 +743,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         return result;
     }
 
-    function highlightRange(rowStr, start, length, className) {
+    function highlightPositions(rowStr, positions, className) {
+        const highlighted = new Set(positions);
         let result = '';
         for (let i = 0; i < rowStr.length; i++) {
             const char = escapeChar(rowStr[i]);
-            if (i >= start && i < start + length) {
+            if (highlighted.has(i)) {
                 result += `<span class="${className}">${char}</span>`;
             } else {
                 result += char;
